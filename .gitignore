@@ -22,3 +22,5 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+deploy_to_server.py
+*.tar.gz
