@@ -122,8 +122,8 @@
                 <option value="oldest" {{ request('sort') === 'oldest' ? 'selected' : '' }}>Oldest Registered</option>
                 <option value="name_asc" {{ request('sort') === 'name_asc' ? 'selected' : '' }}>Name (A - Z)</option>
                 <option value="name_desc" {{ request('sort') === 'name_desc' ? 'selected' : '' }}>Name (Z - A)</option>
-                <option value="most_expenses" {{ request('sort') === 'most_expenses' ? 'selected' : '' }}>Most Expenses</option>
-                <option value="most_incomes" {{ request('sort') === 'most_incomes' ? 'selected' : '' }}>Most Incomes</option>
+                <option value="recent_login" {{ request('sort') === 'recent_login' ? 'selected' : '' }}>Recently Active</option>
+                <option value="most_logins" {{ request('sort') === 'most_logins' ? 'selected' : '' }}>Most Logins</option>
             </select>
         </div>
 
@@ -160,7 +160,7 @@
                         <th class="ps-3 py-3">USER</th>
                         <th>ROLE</th>
                         <th>JOINED DATE</th>
-                        <th>ACTIVITY SUMMARY</th>
+                        <th>LOGIN ACTIVITY</th>
                         <th class="text-center pe-3">ACTIONS</th>
                     </tr>
                 </thead>
@@ -208,18 +208,23 @@
                                 <div style="font-size: 0.72rem;">{{ $user->created_at->diffForHumans() }}</div>
                             </td>
 
-                            <!-- Activity Summary -->
+                            <!-- Login Activity -->
                             <td>
-                                <div class="d-flex flex-wrap gap-1 align-items-center">
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill small" title="Total expenses recorded">
-                                        <i class="bi bi-arrow-up-right me-1"></i>{{ $user->expenses_count }} exp (Rs. {{ number_format($user->expenses_sum_amount ?? 0, 2) }})
-                                    </span>
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small" title="Total incomes recorded">
-                                        <i class="bi bi-arrow-down-left me-1"></i>{{ $user->incomes_count }} inc (Rs. {{ number_format($user->incomes_sum_amount ?? 0, 2) }})
-                                    </span>
-                                    @if($user->loans_count > 0)
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small" title="Active loans">
-                                            <i class="bi bi-bank me-1"></i>{{ $user->loans_count }} loans
+                                <div>
+                                    @if($user->last_login_at)
+                                        <div class="fw-semibold text-dark small d-flex align-items-center gap-1">
+                                            <i class="bi bi-clock-history text-primary"></i>
+                                            <span>{{ $user->last_login_at->diffForHumans() }}</span>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 0.72rem;">
+                                            {{ $user->last_login_at->format('M d, Y (h:i A)') }}
+                                            @if($user->last_login_ip)
+                                                • <span class="font-monospace">{{ $user->last_login_ip }}</span>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span class="badge bg-light text-muted border rounded-pill" style="font-size: 0.72rem;">
+                                            <i class="bi bi-dash-circle me-1"></i> No logins recorded
                                         </span>
                                     @endif
                                 </div>
@@ -229,7 +234,7 @@
                             <td class="text-center pe-3">
                                 <div class="btn-group btn-group-sm">
                                     <!-- View Details -->
-                                    <button type="button" class="btn btn-outline-primary view-user-btn" data-user-id="{{ $user->id }}" title="View User Details & Activity">
+                                    <button type="button" class="btn btn-outline-primary view-user-btn" data-user-id="{{ $user->id }}" title="View User Details & Login History">
                                         <i class="bi bi-eye"></i> Details
                                     </button>
 
@@ -248,7 +253,7 @@
                                         </form>
 
                                         <!-- Delete User -->
-                                        <button type="button" class="btn btn-outline-danger delete-user-btn" data-user-id="{{ $user->id }}" data-user-name="{{ $user->name }}" data-user-email="{{ $user->email }}" data-expenses-count="{{ $user->expenses_count }}" data-incomes-count="{{ $user->incomes_count }}" title="Delete User">
+                                        <button type="button" class="btn btn-outline-danger delete-user-btn" data-user-id="{{ $user->id }}" data-user-name="{{ $user->name }}" data-user-email="{{ $user->email }}" title="Delete User">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     @endif
@@ -296,11 +301,17 @@
                 </div>
 
                 <div class="d-flex flex-wrap gap-1 mb-3">
-                    <span class="badge bg-danger-subtle text-danger border rounded-pill small" style="font-size: 0.68rem;">
-                        {{ $user->expenses_count }} exp (Rs. {{ number_format($user->expenses_sum_amount ?? 0, 2) }})
-                    </span>
-                    <span class="badge bg-success-subtle text-success border rounded-pill small" style="font-size: 0.68rem;">
-                        {{ $user->incomes_count }} inc (Rs. {{ number_format($user->incomes_sum_amount ?? 0, 2) }})
+                    @if($user->last_login_at)
+                        <span class="badge bg-light text-dark border rounded-pill small" style="font-size: 0.68rem;">
+                            <i class="bi bi-clock-history text-primary me-1"></i> Last: {{ $user->last_login_at->diffForHumans() }}
+                        </span>
+                    @else
+                        <span class="badge bg-light text-muted border rounded-pill small" style="font-size: 0.68rem;">
+                            <i class="bi bi-dash-circle me-1"></i> No logins yet
+                        </span>
+                    @endif
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small" style="font-size: 0.68rem;">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> {{ $user->login_logs_count ?? 0 }} session(s)
                     </span>
                 </div>
 
@@ -312,7 +323,7 @@
                         <i class="bi bi-key-fill me-1"></i>Password
                     </button>
                     @if($user->id !== Auth::id())
-                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 small delete-user-btn" data-user-id="{{ $user->id }}" data-user-name="{{ $user->name }}" data-user-email="{{ $user->email }}" data-expenses-count="{{ $user->expenses_count }}" data-incomes-count="{{ $user->incomes_count }}">
+                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 small delete-user-btn" data-user-id="{{ $user->id }}" data-user-name="{{ $user->name }}" data-user-email="{{ $user->email }}">
                             <i class="bi bi-trash"></i>
                         </button>
                     @endif
@@ -345,10 +356,10 @@
             <div class="modal-header border-0 pb-0">
                 <div class="d-flex align-items-center gap-2">
                     <div class="brand-badge bg-primary text-white rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
-                        <i class="bi bi-person-badge-fill fs-5"></i>
+                        <i class="bi bi-shield-check fs-5"></i>
                     </div>
                     <div>
-                        <h5 class="modal-title fw-bold mb-0" id="userDetailsModalLabel">User Details & Activity</h5>
+                        <h5 class="modal-title fw-bold mb-0" id="userDetailsModalLabel">User Details & Login History</h5>
                         <p class="text-muted small mb-0" id="udUserHeaderEmail">User account overview</p>
                     </div>
                 </div>
@@ -377,66 +388,85 @@
                         <div id="udRoleBadgeContainer"></div>
                     </div>
 
-                    <!-- Financial Activity Stats Grid -->
+                    <!-- Privacy Protected Notice Banner -->
+                    <div class="alert alert-light border small text-muted d-flex align-items-center justify-content-between py-2 px-3 rounded-3 mb-3 shadow-none">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-shield-lock-fill text-success fs-5"></i>
+                            <div>
+                                <span class="fw-semibold text-dark">User Privacy Protected:</span>
+                                <span class="text-muted">Personal income amounts, expense records, and loan details are strictly confidential and hidden from administrative views.</span>
+                            </div>
+                        </div>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 flex-shrink-0" style="font-size: 0.7rem;">
+                            <i class="bi bi-lock-fill me-1"></i>Private
+                        </span>
+                    </div>
+
+                    <!-- System Access & Login Activity Stats Grid -->
                     <div class="row g-2 mb-3">
                         <div class="col-6 col-md-3">
-                            <div class="p-2 border rounded-3 bg-success-subtle text-center">
-                                <span class="text-success small fw-semibold d-block">Total Incomes</span>
-                                <span class="fw-bold fs-6 text-success" id="udTotalIncome">Rs. 0.00</span>
-                                <div class="text-muted" style="font-size: 0.68rem;" id="udIncomeCount">0 records</div>
+                            <div class="p-2 border rounded-3 bg-light text-center h-100">
+                                <span class="text-muted small fw-semibold d-block" style="font-size: 0.72rem;">
+                                    <i class="bi bi-box-arrow-in-right text-primary me-1"></i>Total Logins
+                                </span>
+                                <span class="fw-bold fs-5 text-primary" id="udTotalLogins">0</span>
+                                <div class="text-muted" style="font-size: 0.68rem;">Recorded sessions</div>
                             </div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="p-2 border rounded-3 bg-danger-subtle text-center">
-                                <span class="text-danger small fw-semibold d-block">Total Expenses</span>
-                                <span class="fw-bold fs-6 text-danger" id="udTotalExpense">Rs. 0.00</span>
-                                <div class="text-muted" style="font-size: 0.68rem;" id="udExpenseCount">0 records</div>
+                            <div class="p-2 border rounded-3 bg-light text-center h-100">
+                                <span class="text-muted small fw-semibold d-block" style="font-size: 0.72rem;">
+                                    <i class="bi bi-clock-history text-info me-1"></i>Last Login
+                                </span>
+                                <span class="fw-bold fs-6 text-dark d-block text-truncate" id="udLastLoginDiff">Never</span>
+                                <div class="text-muted text-truncate" style="font-size: 0.68rem;" id="udLastLoginDate">-</div>
                             </div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="p-2 border rounded-3 bg-primary-subtle text-center">
-                                <span class="text-primary small fw-semibold d-block">Net Balance</span>
-                                <span class="fw-bold fs-6 text-primary" id="udNetBalance">Rs. 0.00</span>
-                                <div class="text-muted" style="font-size: 0.68rem;">Earnings - Spends</div>
+                            <div class="p-2 border rounded-3 bg-light text-center h-100">
+                                <span class="text-muted small fw-semibold d-block" style="font-size: 0.72rem;">
+                                    <i class="bi bi-globe2 text-secondary me-1"></i>Last IP Address
+                                </span>
+                                <span class="fw-bold fs-6 text-dark d-block text-truncate font-monospace" id="udLastIp">-</span>
+                                <div class="text-muted text-truncate" style="font-size: 0.68rem;" id="udLastDevice">-</div>
                             </div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="p-2 border rounded-3 bg-warning-subtle text-center">
-                                <span class="text-dark small fw-semibold d-block">Lent / Receivables</span>
-                                <span class="fw-bold fs-6 text-dark" id="udLentTotal">Rs. 0.00</span>
-                                <div class="text-muted" style="font-size: 0.68rem;" id="udLentCount">0 loans</div>
+                            <div class="p-2 border rounded-3 bg-light text-center h-100">
+                                <span class="text-muted small fw-semibold d-block" style="font-size: 0.72rem;">
+                                    <i class="bi bi-activity text-success me-1"></i>Status
+                                </span>
+                                <div id="udStatusBadgeContainer" class="mt-1">
+                                    <span class="badge bg-secondary-subtle text-secondary rounded-pill">Offline</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Additional Records Pills -->
-                    <div class="d-flex flex-wrap gap-2 mb-3 p-2 bg-light rounded-3 border small">
-                        <span class="badge bg-white text-dark border">
-                            <i class="bi bi-piggy-bank text-success me-1"></i> <span id="udSavingsCount">0</span> Savings Goals
-                        </span>
-                        <span class="badge bg-white text-dark border">
-                            <i class="bi bi-pie-chart text-warning me-1"></i> <span id="udBudgetsCount">0</span> Monthly Budgets
-                        </span>
-                        <span class="badge bg-white text-dark border">
-                            <i class="bi bi-tags text-primary me-1"></i> <span id="udCustomCatCount">0</span> Custom Categories
-                        </span>
-                    </div>
-
-                    <!-- Recent Transactions Split -->
-                    <div class="row g-3">
-                        <!-- Recent Incomes -->
-                        <div class="col-12 col-md-6">
-                            <span class="fw-bold small text-dark d-block mb-1">
-                                <i class="bi bi-wallet2 text-success me-1"></i> Recent Incomes (Latest 5)
-                            </span>
-                            <div id="udRecentIncomesList" class="d-flex flex-column gap-1"></div>
+                    <!-- System Login History Log Table -->
+                    <div class="card border rounded-3 overflow-hidden shadow-none">
+                        <div class="card-header bg-white py-2 px-3 d-flex align-items-center justify-content-between border-bottom">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-journal-text text-primary"></i>
+                                <span class="fw-bold small text-dark">System Login History (Access Log Records)</span>
+                            </div>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill" style="font-size: 0.68rem;" id="udLogCountBadge">0 records</span>
                         </div>
-                        <!-- Recent Expenses -->
-                        <div class="col-12 col-md-6">
-                            <span class="fw-bold small text-dark d-block mb-1">
-                                <i class="bi bi-receipt text-danger me-1"></i> Recent Expenses (Latest 5)
-                            </span>
-                            <div id="udRecentExpensesList" class="d-flex flex-column gap-1"></div>
+                        <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.78rem;">
+                                <thead class="table-light text-muted sticky-top">
+                                    <tr>
+                                        <th class="ps-3 py-2">DATE & TIME</th>
+                                        <th>DEVICE / OS</th>
+                                        <th>BROWSER</th>
+                                        <th>IP ADDRESS</th>
+                                        <th class="pe-3 text-end">STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="udLoginLogsTableBody">
+                                    <!-- Populated via AJAX -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -573,7 +603,7 @@
 
                 <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3 text-start">
                     <i class="bi bi-exclamation-octagon-fill me-1"></i>
-                    <strong>Cascade Deletion Notice:</strong> All associated financial records (<span id="delExpensesCountText">0</span> expenses, <span id="delIncomesCountText">0</span> incomes, loans, budgets, savings goals, and receipt files) will be permanently erased.
+                    <strong>Cascade Deletion Notice:</strong> All associated account data (incomes, expenses, loans, budgets, login records, and profile files) will be permanently erased.
                 </div>
 
                 <form id="deleteUserForm" method="POST" action="">
@@ -595,7 +625,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // -------------------------------------------------------------
-    // USER DETAILS MODAL (AJAX)
+    // USER DETAILS & LOGIN HISTORY MODAL (AJAX)
     // -------------------------------------------------------------
     const detailsModal = new bootstrap.Modal(document.getElementById('userDetailsModal'));
     const udLoader = document.getElementById('udLoader');
@@ -607,20 +637,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const udAvatarContainer = document.getElementById('udAvatarContainer');
     const udRoleBadgeContainer = document.getElementById('udRoleBadgeContainer');
 
-    const udTotalIncome = document.getElementById('udTotalIncome');
-    const udIncomeCount = document.getElementById('udIncomeCount');
-    const udTotalExpense = document.getElementById('udTotalExpense');
-    const udExpenseCount = document.getElementById('udExpenseCount');
-    const udNetBalance = document.getElementById('udNetBalance');
-    const udLentTotal = document.getElementById('udLentTotal');
-    const udLentCount = document.getElementById('udLentCount');
+    const udTotalLogins = document.getElementById('udTotalLogins');
+    const udLastLoginDiff = document.getElementById('udLastLoginDiff');
+    const udLastLoginDate = document.getElementById('udLastLoginDate');
+    const udLastIp = document.getElementById('udLastIp');
+    const udLastDevice = document.getElementById('udLastDevice');
+    const udStatusBadgeContainer = document.getElementById('udStatusBadgeContainer');
+    const udLogCountBadge = document.getElementById('udLogCountBadge');
+    const udLoginLogsTableBody = document.getElementById('udLoginLogsTableBody');
 
-    const udSavingsCount = document.getElementById('udSavingsCount');
-    const udBudgetsCount = document.getElementById('udBudgetsCount');
-    const udCustomCatCount = document.getElementById('udCustomCatCount');
+    function getDeviceIcon(device, platform) {
+        if (device === 'Mobile') {
+            return '<i class="bi bi-phone text-primary me-2 fs-6"></i>';
+        } else if (device === 'Tablet') {
+            return '<i class="bi bi-tablet text-info me-2 fs-6"></i>';
+        }
+        return '<i class="bi bi-laptop text-secondary me-2 fs-6"></i>';
+    }
 
-    const udRecentIncomesList = document.getElementById('udRecentIncomesList');
-    const udRecentExpensesList = document.getElementById('udRecentExpensesList');
+    function getBrowserIcon(browser) {
+        const b = (browser || '').toLowerCase();
+        if (b.includes('chrome')) return '<i class="bi bi-browser-chrome text-warning me-1"></i>';
+        if (b.includes('edge')) return '<i class="bi bi-browser-edge text-primary me-1"></i>';
+        if (b.includes('firefox')) return '<i class="bi bi-browser-firefox text-danger me-1"></i>';
+        if (b.includes('safari')) return '<i class="bi bi-compass text-info me-1"></i>';
+        return '<i class="bi bi-globe text-muted me-1"></i>';
+    }
 
     document.querySelectorAll('.view-user-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -645,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 udName.textContent = data.name;
                 udEmail.textContent = data.email;
                 udHeaderEmail.textContent = data.email;
-                udJoinedDate.textContent = data.joined_date;
+                udJoinedDate.textContent = data.joined_date + (data.joined_diff ? ` (${data.joined_diff})` : '');
 
                 // Avatar
                 if (data.avatar_url) {
@@ -661,62 +703,73 @@ document.addEventListener('DOMContentLoaded', function() {
                     udRoleBadgeContainer.innerHTML = `<span class="badge bg-light text-muted border rounded-pill px-3 py-1"><i class="bi bi-person me-1"></i> Standard User</span>`;
                 }
 
-                // Financial stats
-                udTotalIncome.textContent = 'Rs. ' + data.financial.incomes_total;
-                udIncomeCount.textContent = data.financial.incomes_count + ' records';
+                // Login Stats Overview
+                const stats = data.login_stats || {};
+                udTotalLogins.textContent = stats.total_logins || 0;
+                udLastLoginDiff.textContent = stats.last_login_diff || 'Never';
+                udLastLoginDate.textContent = stats.last_login_formatted || '-';
+                udLastIp.textContent = stats.last_ip || '-';
+                udLastDevice.textContent = (stats.last_device || 'Desktop') + ' • ' + (stats.last_browser || 'Browser');
 
-                udTotalExpense.textContent = 'Rs. ' + data.financial.expenses_total;
-                udExpenseCount.textContent = data.financial.expenses_count + ' records';
-
-                udNetBalance.textContent = 'Rs. ' + data.financial.balance;
-                udLentTotal.textContent = 'Rs. ' + data.financial.lent_total;
-                udLentCount.textContent = data.financial.lent_count + ' loans';
-
-                udSavingsCount.textContent = data.financial.savings_goals_count;
-                udBudgetsCount.textContent = data.financial.budgets_count;
-                udCustomCatCount.textContent = data.financial.custom_categories_count;
-
-                // Recent Incomes list
-                if (data.recent_incomes && data.recent_incomes.length > 0) {
-                    let incHtml = '';
-                    data.recent_incomes.forEach(i => {
-                        incHtml += `
-                            <div class="p-2 border rounded-2 bg-light small d-flex justify-content-between align-items-center" style="font-size: 0.77rem;">
-                                <div>
-                                    <span class="fw-semibold text-dark">${i.category}</span>
-                                    <span class="text-muted d-block" style="font-size: 0.7rem;">${i.date} • ${i.note}</span>
-                                </div>
-                                <span class="fw-bold text-success text-nowrap">+ Rs. ${i.amount}</span>
-                            </div>
-                        `;
-                    });
-                    udRecentIncomesList.innerHTML = incHtml;
+                // Online/Active Status Badge
+                if (stats.is_active_now) {
+                    udStatusBadgeContainer.innerHTML = `<span class="badge bg-success text-white rounded-pill px-2 py-1"><i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i> Active Recently</span>`;
                 } else {
-                    udRecentIncomesList.innerHTML = '<div class="text-muted small p-2 bg-light rounded-2 text-center">No incomes recorded yet.</div>';
+                    udStatusBadgeContainer.innerHTML = `<span class="badge bg-secondary-subtle text-secondary rounded-pill px-2 py-1"><i class="bi bi-dash-circle me-1"></i> Inactive</span>`;
                 }
 
-                // Recent Expenses list
-                if (data.recent_expenses && data.recent_expenses.length > 0) {
-                    let expHtml = '';
-                    data.recent_expenses.forEach(e => {
-                        expHtml += `
-                            <div class="p-2 border rounded-2 bg-light small d-flex justify-content-between align-items-center" style="font-size: 0.77rem;">
-                                <div>
-                                    <span class="fw-semibold text-dark">${e.category}</span>
-                                    <span class="text-muted d-block" style="font-size: 0.7rem;">${e.date} • ${e.note}</span>
-                                </div>
-                                <span class="fw-bold text-danger text-nowrap">Rs. ${e.amount}</span>
-                            </div>
+                // Login logs table rows
+                if (data.login_logs && data.login_logs.length > 0) {
+                    udLogCountBadge.textContent = data.login_logs.length + ' records';
+                    let rowsHtml = '';
+                    data.login_logs.forEach(log => {
+                        const devIcon = getDeviceIcon(log.device, log.platform);
+                        const brIcon = getBrowserIcon(log.browser);
+                        rowsHtml += `
+                            <tr>
+                                <td class="ps-3 py-2">
+                                    <div class="fw-semibold text-dark">${log.date_formatted}</div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">${log.time_formatted} • ${log.diff_for_humans}</div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        ${devIcon}
+                                        <span>${log.platform || 'OS'} <span class="text-muted small">(${log.device || 'Desktop'})</span></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        ${brIcon}
+                                        <span>${log.browser || 'Browser'}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.72rem;">${log.ip_address}</span>
+                                </td>
+                                <td class="pe-3 text-end">
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1" style="font-size: 0.7rem;">
+                                        <i class="bi bi-check2-circle me-1"></i>${log.status || 'success'}
+                                    </span>
+                                </td>
+                            </tr>
                         `;
                     });
-                    udRecentExpensesList.innerHTML = expHtml;
+                    udLoginLogsTableBody.innerHTML = rowsHtml;
                 } else {
-                    udRecentExpensesList.innerHTML = '<div class="text-muted small p-2 bg-light rounded-2 text-center">No expenses recorded yet.</div>';
+                    udLogCountBadge.textContent = '0 records';
+                    udLoginLogsTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">
+                                <i class="bi bi-clock-history fs-3 d-block mb-1 text-muted"></i>
+                                No login records found for this user.
+                            </td>
+                        </tr>
+                    `;
                 }
             })
             .catch(err => {
                 udLoader.classList.add('d-none');
-                alert('Could not load user details. Please try again.');
+                alert('Could not load user login details. Please try again.');
             });
         });
     });
@@ -777,22 +830,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteUserForm = document.getElementById('deleteUserForm');
     const delUserNameText = document.getElementById('delUserNameText');
     const delUserEmailText = document.getElementById('delUserEmailText');
-    const delExpensesCountText = document.getElementById('delExpensesCountText');
-    const delIncomesCountText = document.getElementById('delIncomesCountText');
 
     document.querySelectorAll('.delete-user-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const userId = btn.getAttribute('data-user-id');
             const userName = btn.getAttribute('data-user-name');
             const userEmail = btn.getAttribute('data-user-email');
-            const expCount = btn.getAttribute('data-expenses-count') || '0';
-            const incCount = btn.getAttribute('data-incomes-count') || '0';
 
             deleteUserForm.action = "{{ url('/admin/users') }}/" + userId;
             delUserNameText.textContent = userName;
             delUserEmailText.textContent = userEmail;
-            delExpensesCountText.textContent = expCount;
-            delIncomesCountText.textContent = incCount;
 
             deleteUserModal.show();
         });

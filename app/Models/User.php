@@ -24,6 +24,8 @@ class User extends Authenticatable
         'password',
         'avatar',
         'is_admin',
+        'last_login_at',
+        'last_login_ip',
     ];
 
     /**
@@ -81,7 +83,18 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
+    }
+
+    public function loginLogs()
+    {
+        return $this->hasMany(UserLoginLog::class)->orderBy('login_at', 'desc');
+    }
+
+    public function latestLoginLog()
+    {
+        return $this->hasOne(UserLoginLog::class)->latestOfMany('login_at');
     }
 
     public function expenses()

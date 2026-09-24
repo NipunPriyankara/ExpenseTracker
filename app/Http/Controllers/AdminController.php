@@ -13,6 +13,7 @@ use App\Models\RecurringExpense;
 use App\Models\SavingsGoal;
 use App\Models\SavingsTransaction;
 use App\Models\User;
+use App\Models\UserLoginLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,7 @@ class AdminController extends Controller
      */
     public function index(Request $request)
     {
-        // System-wide metrics
+        // System-wide aggregate metrics
         $totalUsers = User::count();
         $totalAdmins = User::where('is_admin', true)->count();
         $totalExpensesCount = Expense::count();
@@ -35,10 +36,10 @@ class AdminController extends Controller
         $totalIncomesAmount = (float) Income::sum('amount');
         $totalActiveLoans = Loan::where('status', 'active')->count();
 
-        // Users Query
-        $query = User::withCount(['expenses', 'incomes', 'loans', 'budgets'])
-            ->withSum('expenses', 'amount')
-            ->withSum('incomes', 'amount');
+        // Users Query - Eager load login logs count and latest login log
+        // User financial details (incomes/expenses) are not exposed per-user to preserve privacy
+        $query = User::withCount(['loginLogs'])
+            ->with(['latestLoginLog']);
 
         // Search by name or email
         if ($search = $request->input('search')) {
@@ -64,10 +65,10 @@ class AdminController extends Controller
             $query->orderBy('name', 'asc');
         } elseif ($sort === 'name_desc') {
             $query->orderBy('name', 'desc');
-        } elseif ($sort === 'most_expenses') {
-            $query->orderByDesc('expenses_count');
-        } elseif ($sort === 'most_incomes') {
-            $query->orderByDesc('incomes_count');
+        } elseif ($sort === 'most_logins') {
+            $query->orderByDesc('login_logs_count');
+        } elseif ($sort === 'recent_login') {
+            $query->orderByRaw('last_login_at IS NULL, last_login_at DESC');
         } else {
             $query->orderBy('created_at', 'desc')->orderBy('id', 'desc');
         }
@@ -87,58 +88,33 @@ class AdminController extends Controller
     }
 
     /**
-     * Get detailed statistics and activity for a specific user (AJAX endpoint)
+     * Get user details and login activity history for a specific user (AJAX endpoint)
+     * Note: Personal financial transactions and amounts are excluded to protect user privacy.
      */
     public function show(User $user)
     {
-        $expensesCount = Expense::where('user_id', $user->id)->count();
-        $expensesTotal = (float) Expense::where('user_id', $user->id)->sum('amount');
+        $loginLogs = $user->loginLogs()
+            ->latest('login_at')
+            ->take(20)
+            ->get();
 
-        $incomesCount = Income::where('user_id', $user->id)->count();
-        $incomesTotal = (float) Income::where('user_id', $user->id)->sum('amount');
+        $totalLogins = $user->loginLogs()->count();
+        $latestLogin = $loginLogs->first();
 
-        $lentLoans = Loan::where('user_id', $user->id)->where('type', 'lent')->get();
-        $lentLoansCount = $lentLoans->count();
-        $lentTotal = (float) $lentLoans->sum(fn($l) => $l->remaining_amount);
-
-        $borrowedLoans = Loan::where('user_id', $user->id)->where('type', 'borrowed')->get();
-        $borrowedLoansCount = $borrowedLoans->count();
-        $borrowedTotal = (float) $borrowedLoans->sum(fn($l) => $l->remaining_amount);
-
-        $savingsGoalsCount = SavingsGoal::where('user_id', $user->id)->count();
-        $savingsTargetTotal = (float) SavingsGoal::where('user_id', $user->id)->sum('target_amount');
-        $savingsCurrentTotal = (float) SavingsGoal::where('user_id', $user->id)->sum('current_amount');
-
-        $budgetsCount = Budget::where('user_id', $user->id)->count();
-        $customCategoriesCount = Category::where('user_id', $user->id)->count();
-
-        // Latest 5 expenses
-        $recentExpenses = Expense::with('category')
-            ->where('user_id', $user->id)
-            ->latest('date')
-            ->latest('id')
-            ->take(5)
-            ->get()
-            ->map(fn($e) => [
-                'date' => $e->date->format('M d, Y'),
-                'category' => $e->category ? $e->category->display_name : 'Uncategorized',
-                'amount' => number_format($e->amount, 2),
-                'note' => $e->note ?: '-',
+        // If user has no login logs recorded yet (e.g. registered before migration), synthesize initial log from registration
+        if (!$latestLogin) {
+            $latestLogin = $user->loginLogs()->create([
+                'ip_address' => $user->last_login_ip ?: '127.0.0.1',
+                'user_agent' => 'Initial Account Registration',
+                'device' => 'Desktop',
+                'browser' => 'System',
+                'platform' => 'System',
+                'login_at' => $user->created_at,
+                'status' => 'success',
             ]);
-
-        // Latest 5 incomes
-        $recentIncomes = Income::with('category')
-            ->where('user_id', $user->id)
-            ->latest('date')
-            ->latest('id')
-            ->take(5)
-            ->get()
-            ->map(fn($i) => [
-                'date' => $i->date->format('M d, Y'),
-                'category' => $i->category ? $i->category->display_name : ($i->source ?: 'Income'),
-                'amount' => number_format($i->amount, 2),
-                'note' => $i->note ?: '-',
-            ]);
+            $totalLogins = 1;
+            $loginLogs = collect([$latestLogin]);
+        }
 
         return response()->json([
             'id' => $user->id,
@@ -148,24 +124,28 @@ class AdminController extends Controller
             'avatar_url' => $user->avatar_url,
             'is_admin' => $user->isAdmin(),
             'joined_date' => $user->created_at->format('M d, Y (h:i A)'),
-            'financial' => [
-                'expenses_count' => $expensesCount,
-                'expenses_total' => number_format($expensesTotal, 2),
-                'incomes_count' => $incomesCount,
-                'incomes_total' => number_format($incomesTotal, 2),
-                'balance' => number_format($incomesTotal - $expensesTotal, 2),
-                'lent_count' => $lentLoansCount,
-                'lent_total' => number_format($lentTotal, 2),
-                'borrowed_count' => $borrowedLoansCount,
-                'borrowed_total' => number_format($borrowedTotal, 2),
-                'savings_goals_count' => $savingsGoalsCount,
-                'savings_target' => number_format($savingsTargetTotal, 2),
-                'savings_current' => number_format($savingsCurrentTotal, 2),
-                'budgets_count' => $budgetsCount,
-                'custom_categories_count' => $customCategoriesCount,
+            'joined_diff' => $user->created_at->diffForHumans(),
+            'login_stats' => [
+                'total_logins' => $totalLogins,
+                'last_login_formatted' => $latestLogin->login_at->format('M d, Y (h:i A)'),
+                'last_login_diff' => $latestLogin->login_at->diffForHumans(),
+                'last_ip' => $latestLogin->ip_address ?: '127.0.0.1',
+                'last_device' => $latestLogin->device ?: 'Desktop',
+                'last_platform' => $latestLogin->platform ?: 'OS',
+                'last_browser' => $latestLogin->browser ?: 'Browser',
+                'is_active_now' => $latestLogin->login_at->gt(now()->subMinutes(30)),
             ],
-            'recent_expenses' => $recentExpenses,
-            'recent_incomes' => $recentIncomes,
+            'login_logs' => $loginLogs->map(fn($log) => [
+                'id' => $log->id,
+                'date_formatted' => $log->login_at->format('M d, Y'),
+                'time_formatted' => $log->login_at->format('h:i:s A'),
+                'diff_for_humans' => $log->login_at->diffForHumans(),
+                'ip_address' => $log->ip_address ?: '127.0.0.1',
+                'device' => $log->device ?: 'Desktop',
+                'browser' => $log->browser ?: 'Browser',
+                'platform' => $log->platform ?: 'OS',
+                'status' => $log->status ?: 'success',
+            ]),
         ]);
     }
 
