@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,6 +42,9 @@ class AuthController extends Controller
             'email' => strtolower(trim($validated['email'])),
             'password' => Hash::make($validated['password']),
         ]);
+
+        // Seed default categories for newly registered user
+        Category::seedDefaultCategoriesForUser($user->id);
 
         Auth::login($user);
 

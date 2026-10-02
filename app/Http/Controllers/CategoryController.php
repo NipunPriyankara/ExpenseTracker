@@ -49,14 +49,14 @@ class CategoryController extends Controller
             'type' => ['nullable', 'in:expense,income'],
         ]);
 
-        $parent = !empty($validated['parent_id']) ? Category::find($validated['parent_id']) : null;
+        $parent = !empty($validated['parent_id']) ? Category::forUser(Auth::id())->find($validated['parent_id']) : null;
         $type = $validated['type'] ?? ($parent ? $parent->type : 'expense');
         $color = $validated['color'] ?: ($parent ? $parent->color : '#4f46e5');
         $icon = $validated['icon'] ?: ($parent ? $parent->icon : 'bi-tag');
 
         $category = Category::create([
             'user_id' => Auth::id(),
-            'parent_id' => $validated['parent_id'] ?? null,
+            'parent_id' => $parent ? $parent->id : null,
             'name' => trim($validated['name']),
             'icon' => $icon,
             'color' => $color,
@@ -84,14 +84,14 @@ class CategoryController extends Controller
             'type' => ['nullable', 'in:expense,income'],
         ]);
 
-        $parent = !empty($validated['parent_id']) ? Category::find($validated['parent_id']) : null;
+        $parent = !empty($validated['parent_id']) ? Category::forUser(Auth::id())->find($validated['parent_id']) : null;
         $type = $validated['type'] ?? ($parent ? $parent->type : 'expense');
         $color = !empty($validated['color']) ? $validated['color'] : ($parent ? $parent->color : ($type === 'income' ? '#10b981' : '#4f46e5'));
         $icon = !empty($validated['icon']) ? $validated['icon'] : ($parent ? $parent->icon : ($type === 'income' ? 'bi-cash-coin' : 'bi-tag'));
 
         $category = Category::create([
             'user_id' => Auth::id(),
-            'parent_id' => $validated['parent_id'] ?? null,
+            'parent_id' => $parent ? $parent->id : null,
             'name' => trim($validated['name']),
             'icon' => $icon,
             'color' => $color,
@@ -114,11 +114,20 @@ class CategoryController extends Controller
         ]);
     }
 
+    /**
+     * Load default set of categories for current logged in user.
+     */
+    public function loadDefaults()
+    {
+        Category::seedDefaultCategoriesForUser(Auth::id());
+        return redirect()->back()->with('success', 'Default categories loaded successfully!');
+    }
+
     public function destroy(Category $category)
     {
-        // Security check: only owner can delete custom categories
-        if ($category->is_default || $category->user_id !== Auth::id()) {
-            return redirect()->back()->with('error', 'Default categories or categories belonging to other users cannot be deleted.');
+        // Security check: only owner can delete their categories
+        if ($category->user_id !== Auth::id()) {
+            return redirect()->back()->with('error', 'You cannot delete categories belonging to other users.');
         }
 
         // Check if in use
@@ -132,6 +141,6 @@ class CategoryController extends Controller
 
         $category->delete();
 
-        return redirect()->back()->with('success', 'Custom category deleted successfully.');
+        return redirect()->back()->with('success', 'Category deleted successfully.');
     }
 }

@@ -8,10 +8,19 @@
         <h4 class="fw-bold mb-1"><i class="bi bi-tags-fill text-primary me-2"></i>Categories & Sub-categories</h4>
         <p class="text-muted small mb-0">Organize and manage your expense and income classifications.</p>
     </div>
-    <button class="btn btn-primary rounded-pill px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
-        <i class="bi bi-plus-lg"></i>
-        <span>New Category</span>
-    </button>
+    <div class="d-flex align-items-center gap-2">
+        <form method="POST" action="{{ route('categories.load-defaults') }}" onsubmit="return confirm('Load default expense and income categories set into your account?');">
+            @csrf
+            <button type="submit" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm d-flex align-items-center gap-1" title="Add default category set to your account">
+                <i class="bi bi-box-arrow-in-down"></i>
+                <span>Load Default Set</span>
+            </button>
+        </form>
+        <button class="btn btn-primary rounded-pill px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+            <i class="bi bi-plus-lg"></i>
+            <span>New Category</span>
+        </button>
+    </div>
 </div>
 
 <!-- Type Filter Tabs -->
@@ -45,18 +54,14 @@
                             <span class="badge bg-primary-subtle text-primary border rounded-pill small" style="font-size: 0.65rem;" title="Subcategory of {{ $cat->parent->name }}">
                                 <i class="bi bi-diagram-2 me-1"></i>{{ $cat->parent->name }}
                             </span>
-                        @elseif($cat->is_default)
-                            <span class="badge bg-light text-muted border rounded-pill small" style="font-size: 0.68rem;">Default</span>
                         @endif
-                        @if(!$cat->is_default)
-                            <form method="POST" action="{{ route('categories.destroy', $cat->id) }}" onsubmit="return confirm('Delete this custom category?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none ms-1" title="Delete custom category">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
-                        @endif
+                        <form method="POST" action="{{ route('categories.destroy', $cat->id) }}" onsubmit="return confirm('Delete this category?');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none ms-1" title="Delete category">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
                     </div>
                 </div>
                 <div>
@@ -88,7 +93,18 @@
             <div class="card card-custom p-5 text-center">
                 <i class="bi bi-tags text-muted display-4 mb-2"></i>
                 <h5 class="fw-bold text-muted">No Categories Found</h5>
-                <p class="text-muted small">Create your first custom category using the button above.</p>
+                <p class="text-muted small mb-3">You don't have any categories yet. Create your first custom category or load the default category set.</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <form method="POST" action="{{ route('categories.load-defaults') }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-primary rounded-pill px-4">
+                            <i class="bi bi-box-arrow-in-down me-1"></i> Load Default Category Set
+                        </button>
+                    </form>
+                    <button class="btn btn-primary rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                        <i class="bi bi-plus-lg me-1"></i> Create Custom Category
+                    </button>
+                </div>
             </div>
         </div>
     @endforelse

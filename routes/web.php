@@ -49,6 +49,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
     Route::post('/categories', [CategoryController::class, 'store'])->name('categories.store');
     Route::post('/categories/quick-store', [CategoryController::class, 'quickStore'])->name('categories.quick-store');
+    Route::post('/categories/load-defaults', [CategoryController::class, 'loadDefaults'])->name('categories.load-defaults');
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
 
     // Budget Management
