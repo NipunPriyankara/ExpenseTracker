@@ -24,6 +24,12 @@ class ReportController extends Controller
         if ($filter === 'previous_month') {
             $startDate = $now->copy()->subMonth()->startOfMonth();
             $endDate = $now->copy()->subMonth()->endOfMonth();
+        } elseif ($filter === 'all_time') {
+            $earliestExp = Expense::where('user_id', $userId)->min('date');
+            $earliestInc = Income::where('user_id', $userId)->min('date');
+            $minDateStr = collect([$earliestExp, $earliestInc])->filter()->min();
+            $startDate = $minDateStr ? Carbon::parse($minDateStr)->startOfDay() : $now->copy()->startOfMonth();
+            $endDate = $now->copy()->endOfDay();
         } elseif ($filter === 'custom' && $customStart && $customEnd) {
             $startDate = Carbon::parse($customStart)->startOfDay();
             $endDate = Carbon::parse($customEnd)->endOfDay();
@@ -79,8 +85,15 @@ class ReportController extends Controller
         // 2. Daily Expenses (Line Chart)
         $daysInPeriod = [];
         $dailyExpenseData = [];
-        $currentDay = $startDate->copy();
-        while ($currentDay->lte($endDate) && $daysInPeriod < 31) {
+
+        // For all_time or ranges > 30 days, plot the last 30 days for daily flow
+        $diffInDays = $startDate->diffInDays($endDate);
+        $dailyStart = ($filter === 'all_time' && $diffInDays > 30) 
+            ? $now->copy()->subDays(29)->startOfDay() 
+            : $startDate->copy();
+
+        $currentDay = $dailyStart->copy();
+        while ($currentDay->lte($endDate) && count($daysInPeriod) < 31) {
             $dateStr = $currentDay->format('Y-m-d');
             $daysInPeriod[] = $currentDay->format('M d');
 
@@ -92,12 +105,14 @@ class ReportController extends Controller
             $currentDay->addDay();
         }
 
-        // 3. Monthly Trends (Last 6 Months: Income vs Expense)
+        // 3. Monthly Trends (Last 6-12 Months: Income vs Expense)
         $monthsTrend = [];
         $monthlyIncomeData = [];
         $monthlyExpenseData = [];
 
-        for ($i = 5; $i >= 0; $i--) {
+        $trendMonthsCount = $filter === 'all_time' ? 12 : 6;
+
+        for ($i = $trendMonthsCount - 1; $i >= 0; $i--) {
             $m = Carbon::now()->subMonths($i);
             $mStart = $m->copy()->startOfMonth();
             $mEnd = $m->copy()->endOfMonth();

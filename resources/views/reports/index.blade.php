@@ -16,6 +16,9 @@
             <a href="?period=previous_month" class="btn btn-sm rounded-pill px-3 {{ $filter === 'previous_month' ? 'btn-primary' : 'btn-light' }}">
                 Last Month
             </a>
+            <a href="?period=all_time" class="btn btn-sm rounded-pill px-3 {{ $filter === 'all_time' ? 'btn-primary' : 'btn-light' }}">
+                All Time
+            </a>
             <button type="button" class="btn btn-sm rounded-pill px-3 {{ $filter === 'custom' ? 'btn-primary' : 'btn-light' }}" data-bs-toggle="collapse" data-bs-target="#customRangeCollapse">
                 Custom Range
             </button>
