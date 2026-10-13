@@ -17,22 +17,69 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $userId = Auth::id();
-        $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
-        $monthDate = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
-        $startOfMonth = $monthDate->copy()->startOfMonth();
-        $endOfMonth = $monthDate->copy()->endOfMonth();
+        $period = $request->input('period');
+        $inputMonth = $request->input('month');
+
+        $now = Carbon::now();
+        $currentMonthStr = $now->format('Y-m');
+        $prevMonthStr = $now->copy()->subMonth()->format('Y-m');
+
+        if ($period === 'all_time') {
+            $filter = 'all_time';
+            $selectedMonth = $currentMonthStr;
+            $periodLabel = 'All Time';
+            $startDate = null;
+            $endDate = null;
+        } elseif ($period === 'previous_month' || ($inputMonth === $prevMonthStr && !$period)) {
+            $filter = 'previous_month';
+            $selectedMonth = $prevMonthStr;
+            $monthDate = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+            $startDate = $monthDate->copy()->startOfMonth();
+            $endDate = $monthDate->copy()->endOfMonth();
+            $periodLabel = $monthDate->format('F Y');
+        } elseif ($period === 'current_month' || (!$period && !$inputMonth) || ($inputMonth === $currentMonthStr && !$period)) {
+            $filter = 'current_month';
+            $selectedMonth = $currentMonthStr;
+            $monthDate = $now->copy()->startOfMonth();
+            $startDate = $monthDate->copy()->startOfMonth();
+            $endDate = $monthDate->copy()->endOfMonth();
+            $periodLabel = $monthDate->format('F Y');
+        } else {
+            $filter = 'custom_month';
+            $selectedMonth = $inputMonth ?: $currentMonthStr;
+            try {
+                $monthDate = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+            } catch (\Exception $e) {
+                $monthDate = $now->copy()->startOfMonth();
+                $selectedMonth = $currentMonthStr;
+            }
+            $startDate = $monthDate->copy()->startOfMonth();
+            $endDate = $monthDate->copy()->endOfMonth();
+            $periodLabel = $monthDate->format('F Y');
+        }
 
         $today = Carbon::today();
         $startOfWeek = Carbon::now()->startOfWeek();
 
-        // Calculations strictly scoped to authenticated user (Pure Operating P&L)
-        $currentMonthIncome = Income::where('user_id', $userId)
-            ->whereBetween('date', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
+        // Calculations strictly scoped to authenticated user
+        if ($filter === 'all_time') {
+            $currentMonthIncome = Income::where('user_id', $userId)->sum('amount');
+            $currentMonthExpense = Expense::where('user_id', $userId)->sum('amount');
+            $monthlyBudget = (float) Budget::where('user_id', $userId)->sum('amount');
+        } else {
+            $currentMonthIncome = Income::where('user_id', $userId)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->sum('amount');
 
-        $currentMonthExpense = Expense::where('user_id', $userId)
-            ->whereBetween('date', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
+            $currentMonthExpense = Expense::where('user_id', $userId)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->sum('amount');
+
+            $budget = Budget::where('user_id', $userId)
+                ->where('month', $selectedMonth)
+                ->first();
+            $monthlyBudget = $budget ? (float)$budget->amount : 0.00;
+        }
 
         $currentMonthBalance = $currentMonthIncome - $currentMonthExpense;
 
@@ -44,11 +91,6 @@ class DashboardController extends Controller
             ->whereBetween('date', [$startOfWeek, Carbon::now()->endOfWeek()])
             ->sum('amount');
 
-        $budget = Budget::where('user_id', $userId)
-            ->where('month', $selectedMonth)
-            ->first();
-
-        $monthlyBudget = $budget ? (float)$budget->amount : 0.00;
         $remainingBudget = $monthlyBudget > 0 ? ($monthlyBudget - $currentMonthExpense) : 0.00;
         $budgetUsagePercent = $monthlyBudget > 0 ? round(($currentMonthExpense / $monthlyBudget) * 100, 1) : 0;
 
@@ -180,6 +222,8 @@ class DashboardController extends Controller
         $categories = Category::forUser($userId)->where('type', 'expense')->get();
 
         return view('dashboard', compact(
+            'filter',
+            'periodLabel',
             'selectedMonth',
             'currentMonthIncome',
             'currentMonthExpense',

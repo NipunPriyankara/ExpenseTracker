@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="row align-items-center mb-4 g-3">
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-xl-5">
         <div class="d-flex align-items-center gap-3">
             <a href="{{ route('profile.show') }}" class="text-decoration-none" title="Profile Settings">
                 @if(Auth::user()->avatar)
@@ -17,16 +17,30 @@
             </a>
             <div>
                 <h4 class="fw-bold mb-0">Hello, {{ Auth::user()->name }} 👋</h4>
-                <p class="text-muted small mb-0">Here is your financial summary for <strong>{{ date('F Y') }}</strong></p>
+                <p class="text-muted small mb-0">Here is your financial summary for <strong>{{ $periodLabel }}</strong></p>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 text-md-end d-flex flex-wrap align-items-center justify-content-md-end gap-2">
-        <div class="d-inline-flex align-items-center gap-2 bg-white px-3 py-2 rounded-3 border">
-            <i class="bi bi-calendar-event text-primary"></i>
-            <span class="small fw-semibold text-muted">Month:</span>
-            <input type="month" class="form-control form-control-sm border-0 fw-bold p-0" style="width: auto;" value="{{ $selectedMonth }}" onchange="window.location.href='?month=' + this.value;">
+    <div class="col-12 col-xl-7 text-xl-end d-flex flex-wrap align-items-center justify-content-xl-end gap-2">
+        <!-- Period Quick Filters -->
+        <div class="btn-group btn-group-sm rounded-pill p-1 bg-white border shadow-sm" role="group">
+            <a href="{{ route('dashboard', ['period' => 'current_month']) }}" class="btn btn-sm rounded-pill px-3 {{ $filter === 'current_month' ? 'btn-primary' : 'btn-light' }}">
+                This Month
+            </a>
+            <a href="{{ route('dashboard', ['period' => 'previous_month']) }}" class="btn btn-sm rounded-pill px-3 {{ $filter === 'previous_month' ? 'btn-primary' : 'btn-light' }}">
+                Last Month
+            </a>
+            <a href="{{ route('dashboard', ['period' => 'all_time']) }}" class="btn btn-sm rounded-pill px-3 {{ $filter === 'all_time' ? 'btn-primary' : 'btn-light' }}">
+                All Time
+            </a>
         </div>
+
+        <!-- Custom Month Picker -->
+        <div class="d-inline-flex align-items-center gap-1 bg-white px-2 py-1 rounded-pill border shadow-sm" title="Choose specific month">
+            <i class="bi bi-calendar-event text-primary ms-1"></i>
+            <input type="month" class="form-control form-control-sm border-0 fw-semibold p-0 text-secondary" style="width: 125px; font-size: 0.8rem; background: transparent;" value="{{ $selectedMonth }}" onchange="window.location.href='{{ route('dashboard') }}?month=' + this.value;">
+        </div>
+
         <button class="btn btn-success btn-sm text-white rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#globalAddIncomeModal">
             <i class="bi bi-plus-lg me-1"></i> Add Income
         </button>
@@ -49,7 +63,7 @@
                     </div>
                 </div>
                 <h5 class="fw-bold mb-0 text-success">Rs. {{ number_format($currentMonthIncome, 2) }}</h5>
-                <small class="text-muted" style="font-size: 0.72rem;">This month &bull; View all &rarr;</small>
+                <small class="text-muted" style="font-size: 0.72rem;">{{ $filter === 'all_time' ? 'All time' : $periodLabel }} &bull; View all &rarr;</small>
             </div>
         </a>
     </div>
@@ -65,7 +79,7 @@
                     </div>
                 </div>
                 <h5 class="fw-bold mb-0 text-danger">Rs. {{ number_format($currentMonthExpense, 2) }}</h5>
-                <small class="text-muted" style="font-size: 0.72rem;">This month &bull; View all &rarr;</small>
+                <small class="text-muted" style="font-size: 0.72rem;">{{ $filter === 'all_time' ? 'All time' : $periodLabel }} &bull; View all &rarr;</small>
             </div>
         </a>
     </div>
@@ -82,7 +96,7 @@
             <h5 class="fw-bold mb-0 {{ $currentMonthBalance >= 0 ? 'text-primary' : 'text-danger' }}">
                 Rs. {{ number_format($currentMonthBalance, 2) }}
             </h5>
-            <small class="text-muted" style="font-size: 0.72rem;">Income - Expense</small>
+            <small class="text-muted" style="font-size: 0.72rem;">{{ $filter === 'all_time' ? 'Lifetime Savings' : 'Income - Expense' }}</small>
         </div>
     </div>
 
@@ -91,7 +105,7 @@
         <a href="{{ route('budgets.index') }}" class="text-decoration-none">
             <div class="card card-custom p-3 h-100">
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="small text-muted fw-semibold">Budget Left</span>
+                    <span class="small text-muted fw-semibold">{{ $filter === 'all_time' ? 'Total Budget Left' : 'Budget Left' }}</span>
                     <div class="stat-card-icon bg-warning-subtle text-warning">
                         <i class="bi bi-piggy-bank"></i>
                     </div>
@@ -100,7 +114,7 @@
                     Rs. {{ number_format($remainingBudget, 2) }}
                 </h5>
                 <small class="text-muted" style="font-size: 0.72rem;">
-                    {{ $monthlyBudget > 0 ? $budgetUsagePercent . '% used' : 'Set monthly budget &rarr;' }}
+                    {{ $monthlyBudget > 0 ? $budgetUsagePercent . '% used' : ($filter === 'all_time' ? 'No budgets set' : 'Set monthly budget &rarr;') }}
                 </small>
             </div>
         </a>
@@ -186,7 +200,7 @@
 <div class="card card-custom p-3 mb-4">
     <div class="d-flex justify-content-between align-items-center mb-2">
         <a href="{{ route('budgets.index') }}" class="fw-semibold small text-decoration-none text-dark">
-            <i class="bi bi-speedometer2 me-1 text-primary"></i> Monthly Budget Utilization
+            <i class="bi bi-speedometer2 me-1 text-primary"></i> {{ $filter === 'all_time' ? 'Cumulative Budget Utilization (All Time)' : 'Monthly Budget Utilization (' . $periodLabel . ')' }}
         </a>
         <span class="small fw-bold {{ $budgetUsagePercent > 100 ? 'text-danger' : 'text-primary' }}">{{ $budgetUsagePercent }}%</span>
     </div>
